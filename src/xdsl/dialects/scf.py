@@ -24,9 +24,9 @@ class If(Operation):
     false_region = RegionDef()
 
     @staticmethod
-    def get(cond: Union[Operation, SSAValue], return_types: List[Attribute],
-            true_region: Union[Region, List[Block], List[Operation]],
-            false_region: Union[Region, List[Block], List[Operation]]):
+    def get(cond: SSAValue | Operation, return_types: List[Attribute],
+            true_region: Region | List[Block] | List[Operation],
+            false_region: Region | List[Block] | List[Operation]):
         return If.build(operands=[cond],
                         result_types=[return_types],
                         regions=[true_region, false_region])
@@ -38,8 +38,9 @@ class Yield(Operation):
     arguments = VarOperandDef(AnyAttr())
 
     @staticmethod
-    def get(*operands: Union[Operation, SSAValue]) -> Yield:
-        return Yield.create(operands=[operand for operand in operands])
+    def get(*operands: SSAValue | Operation) -> Yield:
+        return Yield.create(
+            operands=[SSAValue.get(operand) for operand in operands])
 
 
 @irdl_op_definition
@@ -49,8 +50,8 @@ class Condition(Operation):
     arguments = VarOperandDef(AnyAttr())
 
     @staticmethod
-    def get(cond: Union[Operation, SSAValue],
-            *output_ops: Union[Operation, SSAValue]) -> Condition:
+    def get(cond: SSAValue | Operation,
+            *output_ops: SSAValue | Operation) -> Condition:
         return Condition.build(
             operands=[cond, [output for output in output_ops]])
 
@@ -69,20 +70,20 @@ class While(Operation):
         for (idx, arg) in enumerate(self.arguments):
             if self.before_region.blocks[0].args[idx].typ != arg.typ:
                 raise Exception(
-                    f"Block arguments with wrong type, expected {arg.typ}, got {self.before_region.block[0].args[idx].typ}"
+                    f"Block arguments with wrong type, expected {arg.typ}, got {self.before_region.blocks[0].args[idx].typ}"
                 )
 
         for (idx, res) in enumerate(self.res):
             if self.after_region.blocks[0].args[idx].typ != res.typ:
                 raise Exception(
-                    f"Block arguments with wrong type, expected {res.typ}, got {self.after_region.block[0].args[idx].typ}"
+                    f"Block arguments with wrong type, expected {res.typ}, got {self.after_region.blocks[0].args[idx].typ}"
                 )
 
     @staticmethod
-    def get(operands: List[Union[Operation,
-                                 SSAValue]], result_types: List[Attribute],
-            before: Union[Region, List[Operation], List[Block]],
-            after: Union[Region, List[Operation], List[Block]]) -> While:
+    def get(operands: List[SSAValue | Operation],
+            result_types: List[Attribute],
+            before: Region | List[Operation] | List[Block],
+            after: Region | List[Operation] | List[Block]) -> While:
         op = While.build(operands=operands,
                          result_types=result_types,
                          regions=[before, after])

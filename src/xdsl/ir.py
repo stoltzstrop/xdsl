@@ -1,7 +1,10 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, List, Callable, Optional, Any, TYPE_CHECKING, TypeVar, Set, Union
+from typing import (TYPE_CHECKING, Any, Callable, Dict, Generic, List,
+                    Protocol, Optional, Sequence, Set, Type, TypeVar, Union,
+                    cast)
 import typing
 from frozenlist import FrozenList
 
@@ -10,37 +13,35 @@ if TYPE_CHECKING:
     from xdsl.parser import Parser
     from xdsl.printer import Printer
 
-OperationType = TypeVar('OperationType', bound='Operation', covariant=True)
+OpT = TypeVar('OpT', bound='Operation')
 
 
 @dataclass
 class MLContext:
     """Contains structures for operations/attributes registration."""
-    _registeredOps: Dict[str,
-                         typing.Type[Operation]] = field(default_factory=dict)
-    _registeredAttrs: Dict[str, typing.Type[Attribute]] = field(
-        default_factory=dict)
+    _registeredOps: dict[str, type[Operation]] = field(default_factory=dict)
+    _registeredAttrs: dict[str, type[Attribute]] = field(default_factory=dict)
 
-    def register_op(self, op: typing.Type[Operation]) -> None:
+    def register_op(self, op: type[Operation]) -> None:
         """Register an operation definition. Operation names should be unique."""
         if op.name in self._registeredOps:
             raise Exception(f"Operation {op.name} has already been registered")
         self._registeredOps[op.name] = op
 
-    def register_attr(self, attr: typing.Type[Attribute]) -> None:
+    def register_attr(self, attr: type[Attribute]) -> None:
         """Register an attribute definition. Attribute names should be unique."""
         if attr.name in self._registeredAttrs:
             raise Exception(
                 f"Attribute {attr.name} has already been registered")
         self._registeredAttrs[attr.name] = attr
 
-    def get_op(self, name: str) -> typing.Type[Operation]:
+    def get_op(self, name: str) -> type[Operation]:
         """Get an operation class from its name."""
         if name not in self._registeredOps:
             raise Exception(f"Operation {name} is not registered")
         return self._registeredOps[name]
 
-    def get_attr(self, name: str) -> typing.Type[Attribute]:
+    def get_attr(self, name: str) -> type[Attribute]:
         """Get an attribute class from its name."""
         if name not in self._registeredAttrs:
             raise Exception(f"Attribute {name} is not registered")
@@ -66,10 +67,10 @@ class SSAValue(ABC):
     typ: Attribute
     """Each SSA variable is associated to a type."""
 
-    uses: Set[Use] = field(init=False, default_factory=set, repr=False)
+    uses: set[Use] = field(init=False, default_factory=set, repr=False)
     """All uses of the value."""
 
-    name: Optional[str] = field(init=False, default=None)
+    name: str | None = field(init=False, default=None)
 
     @staticmethod
     def get(arg: SSAValue | Operation) -> SSAValue:
@@ -125,10 +126,11 @@ class OpResult(SSAValue):
         return f"OpResult(typ={repr(self.typ)}, num_uses={repr(len(self.uses))}" + \
             f", op_name={repr(self.op.name)}, result_index={repr(self.result_index)}, name={repr(self.name)})"
 
-    def __eq__(self, other):
+    def __eq__(self, other: OpResult) -> bool:
         return self is other
 
-    def __hash__(self):
+    # This might be problematic, as the superclass is not hashable ...
+    def __hash__(self) -> int:
         return id(self)
 
 
@@ -151,10 +153,10 @@ class BlockArgument(SSAValue):
             f", block={block_repr}," \
             " index={repr(self.index)}"
 
-    def __eq__(self, other):
+    def __eq__(self, other: BlockArgument) -> bool:
         return self is other
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return id(self)
 
 
@@ -167,14 +169,13 @@ class ErasedSSAValue(SSAValue):
 
     old_value: SSAValue
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(id(self))
 
 
-AttrClass = TypeVar('AttrClass', bound='Attribute')
+A = TypeVar('A', bound='Attribute')
 
 
-@dataclass(frozen=True)
 class Attribute(ABC):
     """
     A compile-time value.
@@ -186,39 +187,46 @@ class Attribute(ABC):
     """The attribute name should be a static field in the attribute classes."""
 
     @classmethod
-    def build(cls: typing.Type[AttrClass], *args) -> AttrClass:
+    def build(cls: type[A], *args: Any) -> A:
         """Create a new attribute using one of the builder defined in IRDL."""
         assert False
 
+    def __post_init__(self):
+        self.verify()
+
+    def verify(self) -> None:
+        """
+        Check that the attribute parameters satisfy the expected invariants.
+        Raise an exception otherwise.
+        """
+        pass
+
+
+DataElement = TypeVar("DataElement")
+
 
 @dataclass(frozen=True)
-class Data(Attribute):
+class Data(Generic[DataElement], Attribute, ABC):
     """An attribute represented by a Python structure."""
+
+    data: DataElement
 
     @staticmethod
     @abstractmethod
-    def parse(parser: Parser) -> Data:
-        """Parse the attribute value."""
-        ...
+    def parse_parameter(parser: Parser) -> DataElement:
+        """Parse the attribute parameter."""
 
+    @staticmethod
     @abstractmethod
-    def print(self, printer: Printer) -> None:
-        """Print the attribute value."""
-        ...
+    def print_parameter(data: DataElement, printer: Printer) -> None:
+        """Print the attribute parameter."""
 
 
 @dataclass(frozen=True)
 class ParametrizedAttribute(Attribute):
     """An attribute parametrized by other attributes."""
 
-    name: str = field(default="", init=False)
-    parameters: List[Attribute] = field(default_factory=list)
-
-    def __post_init__(self):
-        self.verify()
-
-    def verify(self) -> None:
-        ...
+    parameters: list[Attribute] = field(default_factory=list)
 
 
 @dataclass
@@ -231,31 +239,31 @@ class Operation:
     _operands: FrozenList[SSAValue] = field(default_factory=FrozenList)
     """The operation operands."""
 
-    results: List[OpResult] = field(default_factory=list)
+    results: list[OpResult] = field(default_factory=list)
     """The results created by the operation."""
 
-    successors: List[Block] = field(default_factory=list)
+    successors: list[Block] = field(default_factory=list)
     """
     The basic blocks that the operation may give control to.
     This list should be empty for non-terminator operations.
     """
 
-    attributes: Dict[str, Attribute] = field(default_factory=dict)
+    attributes: dict[str, Attribute] = field(default_factory=dict)
     """The attributes attached to the operation."""
 
-    regions: List[Region] = field(default_factory=list)
+    regions: list[Region] = field(default_factory=list)
     """Regions arguments of the operation."""
 
-    parent: Optional[Block] = field(default=None, repr=False)
+    parent: Block | None = field(default=None, repr=False)
     """The block containing this operation."""
 
-    def parent_block(self) -> Optional[Block]:
+    def parent_block(self) -> Block | None:
         return self.parent
 
-    def parent_op(self) -> Optional[Operation]:
+    def parent_op(self) -> Operation | None:
         return self.parent.parent.parent if self.parent and self.parent.parent else None
 
-    def parent_region(self) -> Optional[Region]:
+    def parent_region(self) -> Region | None:
         return self.parent.parent if self.parent else None
 
     @property
@@ -263,7 +271,7 @@ class Operation:
         return self._operands
 
     @operands.setter
-    def operands(self, new: Union[List[SSAValue], FrozenList[SSAValue]]):
+    def operands(self, new: list[SSAValue] | FrozenList[SSAValue]):
         if isinstance(new, list):
             new = FrozenList(new)
         for idx, operand in enumerate(self._operands):
@@ -278,12 +286,13 @@ class Operation:
         assert (isinstance(self.name, str))
 
     @staticmethod
-    def with_result_types(op: Any,
-                          operands: Optional[List[SSAValue]] = None,
-                          result_types: Optional[List[Attribute]] = None,
-                          attributes: Optional[Dict[str, Attribute]] = None,
-                          successors: Optional[List[Block]] = None,
-                          regions: Optional[List[Region]] = None) -> Operation:
+    def with_result_types(
+            op: Any,
+            operands: Sequence[SSAValue] | None = None,
+            result_types: Sequence[Attribute] | None = None,
+            attributes: dict[str, Attribute] | None = None,
+            successors: Sequence[Block] | None = None,
+            regions: Sequence[Region] | None = None) -> Operation:
 
         operation = op()
         if operands is not None:
@@ -306,22 +315,23 @@ class Operation:
         return operation
 
     @classmethod
-    def create(cls: typing.Type[OperationType],
-               operands: Optional[List[SSAValue]] = None,
-               result_types: Optional[List[Attribute]] = None,
-               attributes: Optional[Dict[str, Attribute]] = None,
-               successors: Optional[List[Block]] = None,
-               regions: Optional[List[Region]] = None) -> OperationType:
-        return Operation.with_result_types(cls, operands, result_types,
-                                           attributes, successors, regions)
+    def create(cls: type[OpT],
+               operands: Sequence[SSAValue] | None = None,
+               result_types: Sequence[Attribute] | None = None,
+               attributes: dict[str, Attribute] | None = None,
+               successors: Sequence[Block] | None = None,
+               regions: Sequence[Region] | None = None) -> OpT:
+        op = Operation.with_result_types(cls, operands, result_types,
+                                         attributes, successors, regions)
+        return cast(OpT, op)
 
     @classmethod
-    def build(cls: typing.Type[OperationType],
-              operands: List[Any] = None,
-              result_types: List[Any] = None,
-              attributes: Dict[str, Any] = None,
-              successors: List[Any] = None,
-              regions: List[Any] = None) -> OperationType:
+    def build(cls: type[OpT],
+              operands: list[Any] | None = None,
+              result_types: list[Any] | None = None,
+              attributes: dict[str, Any] | None = None,
+              successors: list[Any] | None = None,
+              regions: list[Any] | None = None) -> OpT:
         """Create a new operation using builders."""
         ...
 
@@ -368,11 +378,18 @@ class Operation:
     def verify_(self) -> None:
         pass
 
+    @classmethod
+    def parse(cls: type[Parser._OperationType], result_types: list[Attribute],
+              parser: Parser) -> Parser._OperationType:
+        return parser.parse_op_with_default_format(cls, result_types)
+
+    def print(self, printer: Printer):
+        return printer.print_op_with_default_format(self)
+
     def clone_without_regions(
-            self: OperationType,
-            value_mapper: Optional[Dict[SSAValue, SSAValue]] = None,
-            block_mapper: Optional[Dict[Block,
-                                        Block]] = None) -> OperationType:
+            self: OpT,
+            value_mapper: dict[SSAValue, SSAValue] | None = None,
+            block_mapper: dict[Block, Block] | None = None) -> OpT:
         """Clone an operation, with empty regions instead."""
         if value_mapper is None:
             value_mapper = {}
@@ -397,11 +414,9 @@ class Operation:
             value_mapper[self.results[idx]] = result
         return cloned_op
 
-    def clone(
-            self: OperationType,
-            value_mapper: Optional[Dict[SSAValue, SSAValue]] = None,
-            block_mapper: Optional[Dict[Block,
-                                        Block]] = None) -> OperationType:
+    def clone(self: OpT,
+              value_mapper: dict[SSAValue, SSAValue] | None = None,
+              block_mapper: dict[Block, Block] | None = None) -> OpT:
         """Clone an operation with all its regions and operations in them."""
         if value_mapper is None:
             value_mapper = {}
@@ -412,7 +427,9 @@ class Operation:
             region.clone_into(op.regions[idx], 0, value_mapper, block_mapper)
         return op
 
-    def erase(self, safe_erase=True, drop_references=True) -> None:
+    def erase(self,
+              safe_erase: bool = True,
+              drop_references: bool = True) -> None:
         """
         Erase the operation, and remove all its references to other operations.
         If safe_erase is specified, check that the operation results are not used.
@@ -429,13 +446,13 @@ class Operation:
             raise Exception("Cannot detach a toplevel operation.")
         self.parent.detach_op(self)
 
-    def get_toplevel_object(self) -> Union[Operation, Block, Region]:
+    def get_toplevel_object(self) -> Operation | Block | Region:
         """Get the operation, block, or region ancestor that has no parents."""
         if self.parent is None:
             return self
         return self.parent.get_toplevel_object()
 
-    def is_ancestor(self, op: Union[Operation, Block, Region]) -> bool:
+    def is_ancestor(self, op: Operation | Block | Region) -> bool:
         """Returns true if the operation is an ancestor of the operation, block, or region."""
         if op is self:
             return True
@@ -454,22 +471,23 @@ class Operation:
 class Block:
     """A sequence of operations"""
 
-    _args: FrozenList[BlockArgument] = field(default_factory=list, init=False)
+    _args: FrozenList[BlockArgument] = field(default_factory=FrozenList,
+                                             init=False)
     """The basic block arguments."""
 
-    ops: List[Operation] = field(default_factory=list, init=False)
+    ops: list[Operation] = field(default_factory=list, init=False)
     """Ordered operations contained in the block."""
 
-    parent: Optional[Region] = field(default=None, init=False, repr=False)
+    parent: Region | None = field(default=None, init=False, repr=False)
     """Parent region containing the block."""
 
-    def parent_op(self) -> Optional[Operation]:
+    def parent_op(self) -> Operation | None:
         return self.parent.parent if self.parent else None
 
-    def parent_region(self) -> Optional[Region]:
+    def parent_region(self) -> Region | None:
         return self.parent
 
-    def parent_block(self) -> Optional[Block]:
+    def parent_block(self) -> Block | None:
         return self.parent.parent.parent if self.parent and self.parent.parent else None
 
     def __repr__(self) -> str:
@@ -481,7 +499,7 @@ class Block:
         return self._args
 
     @staticmethod
-    def from_arg_types(arg_types: List[Attribute]) -> Block:
+    def from_arg_types(arg_types: list[Attribute]) -> Block:
         b = Block()
         b._args = FrozenList([
             BlockArgument(typ, b, index) for index, typ in enumerate(arg_types)
@@ -490,24 +508,30 @@ class Block:
         return b
 
     @staticmethod
-    def from_ops(ops: List[Operation], arg_types: List[Attribute] = None):
+    def from_ops(ops: list[Operation],
+                 arg_types: list[Attribute] | None = None):
         b = Block()
         if arg_types is not None:
-            b._args = [
+            b._args = FrozenList([
                 BlockArgument(typ, b, index)
                 for index, typ in enumerate(arg_types)
-            ]
+            ])
+            b._args.freeze()
         b.add_ops(ops)
         return b
 
+    class BlockCallback(Protocol):
+
+        def __call__(self, *args: BlockArgument) -> list[Operation]:
+            ...
+
     @staticmethod
-    def from_callable(block_arg_types: List[Attribute],
-                      f: Callable[[BlockArgument, ...], List[Operation]]):
+    def from_callable(block_arg_types: list[Attribute], f: BlockCallback):
         b = Block.from_arg_types(block_arg_types)
         b.add_ops(f(*b.args))
         return b
 
-    def is_ancestor(self, op: Union[Operation, Block, Region]) -> bool:
+    def is_ancestor(self, op: Operation | Block | Region) -> bool:
         """Returns true if the block is an ancestor of the operation, block, or region."""
         if op is self:
             return True
@@ -565,7 +589,7 @@ class Block:
         self._attach_op(operation)
         self.ops.append(operation)
 
-    def add_ops(self, ops: List[Operation]) -> None:
+    def add_ops(self, ops: list[Operation]) -> None:
         """
         Add operations at the end of the block.
         The operations should not be attached to another block.
@@ -574,9 +598,9 @@ class Block:
             self.add_op(op)
 
     def insert_op(self,
-                  ops: Union[Operation, List[Operation]],
+                  ops: Operation | list[Operation],
                   index: int,
-                  name: Optional[str] = None) -> None:
+                  name: str | None = None) -> None:
         """
         Insert one or multiple operations at a given index in the block.
         The operations should not be attached to another block.
@@ -604,7 +628,7 @@ class Block:
                 return idx
         assert False, "Unexpected xdsl error"
 
-    def detach_op(self, op: Union[int, Operation]) -> Operation:
+    def detach_op(self, op: int | Operation) -> Operation:
         """
         Detach an operation from the block.
         Returns the detached operation.
@@ -620,7 +644,7 @@ class Block:
         self.ops = self.ops[:op_idx] + self.ops[op_idx + 1:]
         return op
 
-    def erase_op(self, op: Union[int, Operation], safe_erase=True) -> None:
+    def erase_op(self, op: int | Operation, safe_erase: bool = True) -> None:
         """
         Erase an operation from the block.
         If safe_erase is True, check that the operation has no uses.
@@ -650,7 +674,7 @@ class Block:
         for op in self.ops:
             op.drop_all_references()
 
-    def erase(self, safe_erase=True) -> None:
+    def erase(self, safe_erase: bool = True) -> None:
         """
         Erase the block, and remove all its references to other operations.
         If safe_erase is specified, check that no operation results are used outside the block.
@@ -660,7 +684,7 @@ class Block:
         for op in self.ops:
             op.erase(safe_erase=safe_erase, drop_references=False)
 
-    def get_toplevel_object(self) -> Union[Operation, Block, Region]:
+    def get_toplevel_object(self) -> Operation | Block | Region:
         """Get the operation, block, or region ancestor that has no parents."""
         if self.parent is None:
             return self
@@ -677,53 +701,53 @@ class Block:
 class Region:
     """A region contains a CFG of blocks. Regions are contained in operations."""
 
-    blocks: List[Block] = field(default_factory=list, init=False)
+    blocks: list[Block] = field(default_factory=list, init=False)
     """Blocks contained in the region. The first block is the entry block."""
 
-    parent: Optional[Operation] = field(default=None, init=False, repr=False)
+    parent: Operation | None = field(default=None, init=False, repr=False)
     """Operation containing the region."""
 
-    def parent_block(self) -> Optional[Block]:
+    def parent_block(self) -> Block | None:
         return self.parent.parent if self.parent else None
 
-    def parent_op(self) -> Optional[Operation]:
+    def parent_op(self) -> Operation | None:
         return self.parent
 
-    def parent_region(self) -> Optional[Region]:
+    def parent_region(self) -> Region | None:
         return self.parent.parent.parent if self.parent and self.parent.parent else None
 
     def __repr__(self) -> str:
         return f"Region(num_blocks={len(self.blocks)})"
 
     @staticmethod
-    def from_operation_list(ops: List[Operation]) -> Region:
+    def from_operation_list(ops: list[Operation]) -> Region:
         block = Block.from_ops(ops)
         region = Region()
         region.add_block(block)
         return region
 
     @staticmethod
-    def from_block_list(blocks: List[Block]) -> Region:
+    def from_block_list(blocks: list[Block]) -> Region:
         region = Region()
         for block in blocks:
             region.add_block(block)
         return region
 
     @staticmethod
-    def get(arg: Region | List[Block] | List[Operation]) -> Region:
+    def get(arg: Region | list[Block] | list[Operation]) -> Region:
         if isinstance(arg, Region):
             return arg
         if isinstance(arg, list):
             if len(arg) == 0:
                 return Region.from_operation_list([])
             if isinstance(arg[0], Block):
-                return Region.from_block_list(arg)
+                return Region.from_block_list(cast(list[Block], arg))
             if isinstance(arg[0], Operation):
-                return Region.from_operation_list(arg)
+                return Region.from_operation_list(cast(list[Operation], arg))
         raise TypeError(f"Can't build a region with argument {arg}")
 
     @property
-    def ops(self) -> List[Operation]:
+    def ops(self) -> list[Operation]:
         """
         Get the operations of a single-block region.
         Returns an exception if the region is not single-block.
@@ -760,8 +784,7 @@ class Region:
         self._attach_block(block)
         self.blocks.append(block)
 
-    def insert_block(self, blocks: Union[Block, List[Block]],
-                     index: int) -> None:
+    def insert_block(self, blocks: Block | list[Block], index: int) -> None:
         """
         Insert one or multiple blocks at a given index in the region.
         The blocks should not be attached to another region.
@@ -785,7 +808,7 @@ class Region:
                 return idx
         assert False, "Unexpected xdsl error"
 
-    def detach_block(self, block: Union[int, Block]) -> Block:
+    def detach_block(self, block: int | Block) -> Block:
         """
         Detach a block from the region.
         Returns the detached block.
@@ -801,7 +824,7 @@ class Region:
         self.blocks = self.blocks[:block_idx] + self.blocks[block_idx + 1:]
         return block
 
-    def erase_block(self, block: Union[int, Block], safe_erase=True) -> None:
+    def erase_block(self, block: int | Block, safe_erase: bool = True) -> None:
         """
         Erase a block from the region.
         If safe_erase is True, check that the block has no uses.
@@ -811,9 +834,9 @@ class Region:
 
     def clone_into(self,
                    dest: Region,
-                   insert_index: Optional[int] = None,
-                   value_mapper: Optional[Dict[SSAValue, SSAValue]] = None,
-                   block_mapper: Optional[Dict[Block, Block]] = None):
+                   insert_index: int | None = None,
+                   value_mapper: dict[SSAValue, SSAValue] | None = None,
+                   block_mapper: dict[Block, Block] | None = None):
         """
         Clone all block of this region into `dest` to position `insert_index`
         """
@@ -873,13 +896,13 @@ class Region:
         for block in region.blocks:
             block.parent = region
 
-    def get_toplevel_object(self) -> Union[Operation, Block, Region]:
+    def get_toplevel_object(self) -> Operation | Block | Region:
         """Get the operation, block, or region ancestor that has no parents."""
         if self.parent is None:
             return self
         return self.parent.get_toplevel_object()
 
-    def is_ancestor(self, op: Union[Operation, Block, Region]) -> bool:
+    def is_ancestor(self, op: Operation | Block | Region) -> bool:
         """Returns true if the region is an ancestor of the operation, block, or region."""
         if op is self:
             return True

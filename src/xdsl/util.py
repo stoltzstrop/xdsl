@@ -1,13 +1,12 @@
 import inspect
 from inspect import signature
-from typing import Union, NoReturn, Callable, List, overload
+from typing import Annotated, Any, TypeGuard, Union, NoReturn, Callable, List
 import typing
 from dataclasses import dataclass
 from xdsl.ir import Operation, SSAValue, BlockArgument, Block, Region, Attribute
 
 
-def new_op(op_name, num_results, num_operands,
-           num_regions) -> typing.Type[Operation]:
+def new_op(op_name, num_results, num_operands, num_regions) -> type[Operation]:
 
     @dataclass(eq=False)
     class OpBase(Operation):
@@ -65,3 +64,7 @@ def is_satisfying_hint(arg, hint) -> bool:
         return False
 
     raise ValueError(f"is_satisfying_hint: unsupported type hint '{hint}'")
+
+
+annotated_type = type(Annotated[int, 0])
+"""This is the type of an Annotated object."""
