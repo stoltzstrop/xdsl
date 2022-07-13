@@ -20,8 +20,6 @@ class Builtin:
         self.ctx.register_attr(SymbolNameAttr)
         self.ctx.register_attr(IntAttr)
         self.ctx.register_attr(IntegerAttr)
-        self.ctx.register_attr(FloatAttr)
-        self.ctx.register_attr(Float32Attr)
         self.ctx.register_attr(ArrayAttr)
         self.ctx.register_attr(VectorType)
         self.ctx.register_attr(TensorType)
@@ -30,7 +28,6 @@ class Builtin:
         self.ctx.register_attr(TupleType)
 
         self.ctx.register_attr(FunctionType)
-        self.ctx.register_attr(Float32Type)
         self.ctx.register_attr(IntegerType)
         self.ctx.register_attr(IndexType)
 
@@ -107,25 +104,6 @@ class IntAttr(Data):
         return IntAttr(data)
 
 @irdl_attr_definition
-class FloatAttr(Data):
-    name = "float"
-    data: float
-
-    @staticmethod
-    def parse(parser: Parser) -> FloatAttr:
-        data = parser.parse_float_literal()
-        return FloatAttr(data)
-
-    def print(self, printer: Printer) -> None:
-        printer.print_string(f'{self.data}')
-
-    @staticmethod
-    @builder
-    def from_float(data: float) -> FloatAttr:
-        return FloatAttr(data)
-
-
-@irdl_attr_definition
 class IntegerType(ParametrizedAttribute):
     name = "integer_type"
     width = ParameterDef(IntAttr)
@@ -140,17 +118,6 @@ i64 = IntegerType.from_width(64)
 i32 = IntegerType.from_width(32)
 i1 = IntegerType.from_width(1)
 
-@irdl_attr_definition
-class Float32Type(ParametrizedAttribute):
-    name = "float_type"
-    width = ParameterDef(FloatAttr)
-
-    @staticmethod
-    @builder
-    def from_width(width: float) -> Attribute:
-        return Float32Type([FloatAttr.from_float(width)])
-
-f32 = Float32Type.from_width(32)
 
 @irdl_attr_definition
 class IndexType(ParametrizedAttribute):
@@ -183,34 +150,6 @@ class IntegerAttr(ParametrizedAttribute):
         if not isinstance(typ, IndexType):
             typ = IntegerType.build(typ)
         return IntegerAttr([value, typ])
-
-
-@irdl_attr_definition
-class Float32Attr(ParametrizedAttribute):
-    name = "float32"
-    value = ParameterDef(FloatAttr)
-    typ = ParameterDef(AnyOf([Float32Type, IndexType]))
-
-    @staticmethod
-    @builder
-    def from_float_and_width(value: float, width: float) -> Float32Attr:
-        return Float32Attr(
-            [FloatAttr.from_float(value),
-             Float32Type.from_width(width)])
-
-    @staticmethod
-    @builder
-    def from_index_float_value(value: float) -> Float32Attr:
-        return Float32Attr([FloatAttr.from_float(value), IndexType()])
-
-    @staticmethod
-    @builder
-    def from_params(value: Union[float, FloatAttr],
-                    typ: Union[float, Attribute]) -> Float32Attr:
-        value = FloatAttr.build(value)
-        if not isinstance(typ, IndexType):
-            typ = Float32Type.build(typ)
-        return Float32Attr([value, typ])
 
 
 @irdl_attr_definition
@@ -379,12 +318,6 @@ class DenseIntOrFPElementsAttr(ParametrizedAttribute):
             typ: Union[IntegerType, IndexType]) -> DenseIntOrFPElementsAttr:
         t = TensorType.from_type_and_list(typ, [len(data)])
         return DenseIntOrFPElementsAttr.from_list(t, data)
-
-
-#@irdl_attr_definition
-#class Float32Type(ParametrizedAttribute):
-#    name = "f32"
-
 
 
 @irdl_attr_definition
