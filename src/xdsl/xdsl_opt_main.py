@@ -12,6 +12,7 @@ from xdsl.dialects.affine import *
 from xdsl.dialects.memref import *
 from xdsl.dialects.builtin import *
 from xdsl.dialects.cmath import *
+from xdsl.dialects.float import *
 from xdsl.dialects.cf import *
 from xdsl.dialects.irdl import *
 from xdsl.dialects.llvm import LLVM
@@ -144,6 +145,7 @@ class xDSLOptMain:
         Add other/additional dialects by overloading this function.
         """
         builtin = Builtin(self.ctx)
+        float_class = Float(self.ctx)
         func = Func(self.ctx)
         arith = Arith(self.ctx)
         memref = MemRef(self.ctx)

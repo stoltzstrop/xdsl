@@ -1,0 +1,11 @@
+// RUN: xdsl-opt %s | xdsl-opt | filecheck %s
+
+
+module() {
+  func.func() ["sym_name" = "float_check", "function_type" = !fun<[!float_type<[!i32]>], [!float_type<[!i32]>]>, "sym_visibility" = "private"] {
+    ^0(%0 : !float_type<[!i32]>):
+      func.return(%0 : !float_type<[!i32]>)
+  }
+}
+
+

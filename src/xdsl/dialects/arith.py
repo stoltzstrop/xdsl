@@ -2,7 +2,8 @@ from __future__ import annotations
 from xdsl.ir import *
 from xdsl.irdl import *
 from xdsl.util import *
-from xdsl.dialects.builtin import IntegerType, Float32Type, IntegerAttr
+from xdsl.dialects.builtin import IntegerType, IntegerAttr
+from xdsl.dialects.float import FloatType
 
 
 @dataclass
@@ -125,9 +126,9 @@ class FloorDiviSI(Operation):
 
     @staticmethod
     def get(operand1: Union[Operation, SSAValue],
-            operand2: Union[Operation, SSAValue]) -> FloorDiviSI:
-        return FloorDiviSI.build(operands=[operand1, operand2],
-                                 result_types=[IntegerType.from_width(32)])
+            operand2: Union[Operation, SSAValue]) -> FloordiviSigned:
+        return FloordiviSigned.build(operands=[operand1, operand2],
+                                     result_types=[IntegerType.from_width(32)])
 
 
 @irdl_op_definition
@@ -145,9 +146,9 @@ class RemSI(Operation):
 
     @staticmethod
     def get(operand1: Union[Operation, SSAValue],
-            operand2: Union[Operation, SSAValue]) -> RemSI:
-        return RemSI.build(operands=[operand1, operand2],
-                           result_types=[IntegerType.from_width(32)])
+            operand2: Union[Operation, SSAValue]) -> RemiSigned:
+        return RemiSigned.build(operands=[operand1, operand2],
+                                result_types=[IntegerType.from_width(32)])
 
 
 @irdl_op_definition
@@ -185,10 +186,10 @@ class OrI(Operation):
 
     @staticmethod
     def get(operand1: Union[Operation, SSAValue],
-            operand2: Union[Operation, SSAValue]) -> OrI:
+            operand2: Union[Operation, SSAValue]) -> Or:
 
-        return OrI.build(operands=[operand1, operand2],
-                         result_types=[SSAValue.get(operand1).typ])
+        return Or.build(operands=[operand1, operand2],
+                        result_types=[SSAValue.get(operand1).typ])
 
 
 @irdl_op_definition
@@ -206,9 +207,9 @@ class XOrI(Operation):
 
     @staticmethod
     def get(operand1: Union[Operation, SSAValue],
-            operand2: Union[Operation, SSAValue]) -> XOrI:
-        return XOrI.build(operands=[operand1, operand2],
-                          result_types=[SSAValue.get(operand1).typ])
+            operand2: Union[Operation, SSAValue]) -> Xor:
+        return Xor.build(operands=[operand1, operand2],
+                         result_types=[SSAValue.get(operand1).typ])
 
 
 @irdl_op_definition
@@ -231,9 +232,9 @@ class Cmpi(Operation):
 @irdl_op_definition
 class Addf(Operation):
     name: str = "arith.addf"
-    input1 = OperandDef(Float32Type)
-    input2 = OperandDef(Float32Type)
-    output = ResultDef(Float32Type)
+    input1 = OperandDef(FloatType)
+    input2 = OperandDef(FloatType)
+    output = ResultDef(FloatType)
 
     # TODO replace with trait
     def verify_(self) -> None:
@@ -245,15 +246,15 @@ class Addf(Operation):
     def get(operand1: Union[Operation, SSAValue],
             operand2: Union[Operation, SSAValue]) -> Addf:
         return Addf.build(operands=[operand1, operand2],
-                          result_types=[Float32Type()])
+                          result_types=[FloatType()])
 
 
 @irdl_op_definition
 class Mulf(Operation):
     name: str = "arith.mulf"
-    input1 = OperandDef(Float32Type)
-    input2 = OperandDef(Float32Type)
-    output = ResultDef(Float32Type)
+    input1 = OperandDef(FloatType)
+    input2 = OperandDef(FloatType)
+    output = ResultDef(FloatType)
 
     # TODO replace with trait
     def verify_(self) -> None:
@@ -265,4 +266,4 @@ class Mulf(Operation):
     def get(operand1: Union[Operation, SSAValue],
             operand2: Union[Operation, SSAValue]) -> Mulf:
         return Mulf.build(operands=[operand1, operand2],
-                          result_types=[Float32Type()])
+                          result_types=[FloatType()])
