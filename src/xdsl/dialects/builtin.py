@@ -1,9 +1,15 @@
 from __future__ import annotations
-from dataclasses import dataclass
 
-from xdsl.irdl import *
-from xdsl.ir import *
-from typing import TypeAlias
+from dataclasses import dataclass
+from typing import TypeAlias, List, cast, Type, Sequence, Optional
+
+from xdsl.ir import (MLContext, TYPE_CHECKING, Data, ParametrizedAttribute,
+                     Operation)
+from xdsl.irdl import (irdl_attr_definition, attr_constr_coercion,
+                       irdl_to_attr_constraint, irdl_op_definition, builder,
+                       ParameterDef, SingleBlockRegionDef, TypeVar, Generic,
+                       GenericData, AttrConstraint, Any, Attribute, Region,
+                       VerifyException, AnyAttr)
 
 if TYPE_CHECKING:
     from xdsl.parser import Parser
@@ -30,6 +36,8 @@ class Builtin:
         self.ctx.register_attr(FunctionType)
         self.ctx.register_attr(Float32Type)
         self.ctx.register_attr(Float64Type)
+        self.ctx.register_attr(FloatData)
+        self.ctx.register_attr(FloatAttr)
         self.ctx.register_attr(IntegerType)
         self.ctx.register_attr(IndexType)
 
@@ -388,6 +396,54 @@ class Float64Type(ParametrizedAttribute):
 
 
 f64 = Float64Type()
+
+
+@irdl_attr_definition
+class FloatData(Data[float]):
+    name = "float_data"
+
+    @staticmethod
+    def parse_parameter(parser: Parser) -> float:
+        return parser.parse_float_literal()
+
+    @staticmethod
+    def print_parameter(data: float, printer: Printer) -> None:
+        printer.print_string(f'{data}')
+
+    @staticmethod
+    @builder
+    def from_float(data: float) -> FloatData:
+        return FloatData(data)
+
+
+_FloatAttrTyp = TypeVar("_FloatAttrTyp",
+                        bound=Float32Type | Float64Type,
+                        covariant=True)
+
+
+@irdl_attr_definition
+class FloatAttr(Generic[_FloatAttrTyp], ParametrizedAttribute):
+    name = "float"
+
+    value: ParameterDef[FloatData]
+    type: ParameterDef[Float32Type | Float64Type]
+
+    @staticmethod
+    @builder
+    def from_value(
+        value: float, type: Float32Type | Float64Type = Float32Type()
+    ) -> FloatAttr[Float64Type]:
+        return FloatAttr([FloatData.from_float(value), type])
+
+    @staticmethod
+    @builder
+    def from_float_and_width(
+            value: float, width: int) -> FloatAttr[Float32Type | Float64Type]:
+        if width == 32:
+            return FloatAttr([FloatData.from_float(value), Float32Type()])
+        if width == 64:
+            return FloatAttr([FloatData.from_float(value), Float64Type()])
+        raise ValueError(f"Invalid bitwidth: {width}")
 
 
 @irdl_attr_definition

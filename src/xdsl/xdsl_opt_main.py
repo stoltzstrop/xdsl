@@ -1,20 +1,25 @@
 import argparse
 import sys
 import os
-from io import IOBase
-from xdsl.ir import *
-from xdsl.parser import *
-from xdsl.printer import *
-from xdsl.dialects.func import *
-from xdsl.dialects.scf import *
-from xdsl.dialects.arith import *
-from xdsl.dialects.affine import *
-from xdsl.dialects.memref import *
-from xdsl.dialects.builtin import *
-from xdsl.dialects.cmath import *
-from xdsl.dialects.cf import *
-from xdsl.dialects.irdl import *
+from io import IOBase, StringIO
+
+from xdsl.ir import MLContext
+from xdsl.parser import Parser
+from xdsl.printer import Printer
+from xdsl.dialects.func import Func
+from xdsl.dialects.scf import Scf
+from xdsl.dialects.arith import Arith
+from xdsl.dialects.affine import Affine
+from xdsl.dialects.memref import MemRef
+from xdsl.dialects.builtin import ModuleOp, Builtin
+from xdsl.dialects.cmath import CMath
+from xdsl.dialects.cf import Cf
+from xdsl.diagnostic import DiagnosticException
 from xdsl.dialects.llvm import LLVM
+from xdsl.dialects.irdl import IRDL
+from xdsl.irdl_mlir_printer import IRDLPrinter
+
+from typing import Dict, Callable, List
 
 
 class xDSLOptMain:
@@ -27,7 +32,7 @@ class xDSLOptMain:
 
     available_frontends: Dict[str, Callable[[IOBase], ModuleOp]] = {}
     """
-    A mapping from file extension to a frontend that can handle this 
+    A mapping from file extension to a frontend that can handle this
     file type.
     """
 
@@ -196,11 +201,17 @@ class xDSLOptMain:
             mlir_module = converter.convert_module(prog)
             print(mlir_module, file=output)
 
+        def _output_irdl(prog: ModuleOp, output: IOBase):
+            irdl_to_mlir = IRDLPrinter(stream=output)
+            irdl_to_mlir.print_module(prog)
+
         self.available_targets['xdsl'] = _output_xdsl
+        self.available_targets['irdl'] = _output_irdl
+
         try:
             from xdsl.mlir_converter import MLIRConverter
             self.available_targets['mlir'] = _output_mlir
-        except ImportError as ex:
+        except ImportError:
             # do not add mlir as target if import does not work
             pass
 
