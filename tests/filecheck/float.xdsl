@@ -2,10 +2,13 @@
 
 
 module() {
-  func.func() ["sym_name" = "float_check", "function_type" = !fun<[!float_type<[!i32]>], [!float_type<[!i32]>]>, "sym_visibility" = "private"] {
-    ^0(%0 : !float_type<[!i32]>):
-      func.return(%0 : !float_type<[!i32]>)
+  func.func() ["sym_name" = "float_check", "function_type" = !fun<[],[]>, "sym_visibility" = "private"] {
+    ^0(%0 : !float_type<[!ft32]>):
+    func.return()
   }
 }
 
+//^0(%0 : !float_type<[!ft32]>):
+//%0 : !f32 = arith.constant() ["value" = 4.2 : !ft32]
+//func.return(%0 : !float_type<[!ft32]>)
 

@@ -3,16 +3,15 @@ from __future__ import annotations
 from xdsl.dialects.builtin import IntAttr
 from xdsl.irdl import *
 from xdsl.ir import *
-from typing import TypeAlias
 
 
 @dataclass
 class Float:
     ctx: MLContext
 
-def __post_init__(self):
-    self.ctx.register_attr(FloatAttr)
-    self.ctx.register_attr(FloatType)
+    def __post_init__(self):
+        self.ctx.register_attr(FloatAttr)
+        self.ctx.register_attr(FloatType)
 
 @irdl_attr_definition
 class FloatAttr(Data[float]):
@@ -48,6 +47,6 @@ class FloatType(ParametrizedAttribute):
     def from_width(width: int) -> FloatType:
         return FloatType([IntAttr.from_int(width)])
 
-f32 = FloatType.from_width(32)
-f64 = FloatType.from_width(64)
+ft32 = FloatType.from_width(32)
+ft64 = FloatType.from_width(64)
 
